@@ -10,13 +10,20 @@ import (
 	"strings"
 )
 
+var rawExtensions = make(map[string]struct{})
+
 func main() {
 	// Remove timestamp prefix, we do not want this
 	log.SetFlags(0)
 
 	noDryMode := flag.Bool("d", false, "If set, this tool will actually delete pictures. Otherwise it will run in dry mode")
+	rawExtensionsFlag := flag.String("raw-exts", "arw,dng,nef", "Comma-separated list of extension that are considered to be RAW images")
 
 	flag.Parse()
+
+	for _, rawExtension := range strings.Split(*rawExtensionsFlag, ",") {
+		rawExtensions[strings.ToLower(rawExtension)] = struct{}{}
+	}
 
 	inputPath := flag.Arg(0)
 	if inputPath == "" {
@@ -62,9 +69,13 @@ func main() {
 	}
 
 	if *noDryMode {
-		log.Printf("Successfully deleted %d files and freed %.2f Mebibytes.", filesDeleted, float64(bytesDeleted)/1024/1024)
+		log.Printf("Successfully deleted %d file(s) and freed %.2f Mebibytes.", filesDeleted, float64(bytesDeleted)/1024/1024)
 	} else {
-		log.Printf("Would have deleted %d files and freed %.2f Mebibytes, but was running in dry mode. To actually delete files run with '-d'.", filesDeleted, float64(bytesDeleted)/1024/1024)
+		log.Printf("Would have deleted %d file(s) and freed %.2f Mebibytes, but was running in dry mode.", filesDeleted, float64(bytesDeleted)/1024/1024)
+
+		if filesDeleted > 0 {
+			log.Println("To actually delete files run with '-d'.")
+		}
 	}
 }
 
@@ -137,12 +148,14 @@ func isJPEG(name string) bool {
 	return hasSuffix(name, ".jpg") || hasSuffix(name, ".jpeg")
 }
 
-func isRAW(name string) bool {
-	return hasSuffix(name, ".arw") || hasSuffix(name, ".dng")
-}
-
 func hasSuffix(name, suffix string) bool {
 	return strings.HasSuffix(strings.ToLower(name), strings.ToLower(suffix))
+}
+
+func isRAW(name string) bool {
+	_, found := rawExtensions[strings.ToLower(strings.TrimPrefix(path.Ext(name), "."))]
+
+	return found
 }
 
 type Deleter interface {
